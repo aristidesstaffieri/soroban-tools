@@ -530,7 +530,7 @@ impl Spec {
         contract_id: &str,
         func_name: &str,
         json_args: &str,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<ScVec, Error> {
         let func = self.find_function(func_name)?;
         let value = serde_json::from_str::<serde_json::Value>(json_args)?;
         let args = value.as_object().unwrap();
@@ -550,7 +550,7 @@ impl Spec {
         ];
         res.append(&mut encoded_args);
         let sc_vec: ScVec = res.try_into().unwrap();
-        Ok(sc_vec.to_xdr()?)
+        Ok(sc_vec)
     }
 
     pub fn decode_args(&self, func_name: &str, xdr_args: &[u8]) -> Result<String, Error> {
