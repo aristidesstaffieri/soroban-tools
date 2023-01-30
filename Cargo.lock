@@ -2079,6 +2079,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "strval"
+version = "0.4.0"
+dependencies = [
+ "assert_cmd",
+ "assert_fs",
+ "base64 0.13.1",
+ "crate-git-revision",
+ "csv",
+ "ed25519-dalek",
+ "hex",
+ "num-bigint",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.6",
+ "soroban-env-host",
+ "soroban-spec",
+ "stellar-strkey 0.0.7",
+ "thiserror",
+ "wasmparser 0.90.0",
+]
+
+[[package]]
 name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

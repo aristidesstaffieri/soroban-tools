@@ -46,6 +46,13 @@ impl From<()> for Error {
 pub struct Spec(pub Option<Vec<ScSpecEntry>>);
 
 impl Spec {
+    /// Errors
+    ///
+    /// Could not find xdr in custom section
+    pub fn from_wasm(wasm: &[u8]) -> Result<Self, Error> {
+        Ok(Self(Some(soroban_spec::read::from_wasm(wasm)?)))
+    }
+
     /// # Errors
     ///
     /// Might return errors
