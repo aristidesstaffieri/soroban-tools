@@ -2,10 +2,10 @@ use serde_json::Value;
 use std::str::FromStr;
 
 use soroban_env_host::xdr::{
-    AccountId, BytesM, Error as XdrError, PublicKey, ScMap, ScMapEntry, ScObject, ScSpecEntry,
-    ScSpecFunctionV0, ScSpecTypeDef, ScSpecTypeMap, ScSpecTypeOption, ScSpecTypeTuple,
+    AccountId, BytesM, Error as XdrError, PublicKey, ReadXdr, ScMap, ScMapEntry, ScObject,
+    ScSpecEntry, ScSpecFunctionV0, ScSpecTypeDef, ScSpecTypeMap, ScSpecTypeOption, ScSpecTypeTuple,
     ScSpecTypeUdt, ScSpecUdtEnumV0, ScSpecUdtStructV0, ScSpecUdtUnionV0, ScStatic, ScVal, ScVec,
-    StringM, Uint256, VecM,
+    StringM, Uint256, VecM, WriteXdr,
 };
 
 use stellar_strkey::ed25519;
@@ -29,9 +29,9 @@ pub enum Error {
     #[error("Missing Entry {0}")]
     MissingEntry(String),
     #[error(transparent)]
-    Xdr(XdrError),
+    Xdr(#[from] XdrError),
     #[error(transparent)]
-    Serde(serde_json::Error),
+    Serde(#[from] serde_json::Error),
     #[error(transparent)]
     WasmSpec(#[from] soroban_spec::read::FromWasmError),
 }
@@ -521,6 +521,43 @@ impl Spec {
 
             _ => return Err(Error::Unknown),
         })
+    }
+}
+
+impl Spec {
+    pub fn encode_args(
+        &self,
+        contract_id: &str,
+        func_name: &str,
+        json_args: &str,
+    ) -> Result<Vec<u8>, Error> {
+        let func = self.find_function(func_name)?;
+        let value = serde_json::from_str::<serde_json::Value>(json_args)?;
+        let args = value.as_object().unwrap();
+        let mut encoded_args = func
+            .inputs
+            .iter()
+            .map(|input| {
+                let arg = args.get(&input.name.to_string_lossy()).unwrap();
+                self.from_json(arg, &input.type_)
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        let mut res = vec![
+            ScVal::Object(Some(ScObject::Bytes(
+                contract_id.as_bytes().try_into().unwrap(),
+            ))),
+            ScVal::Symbol(func_name.try_into().unwrap()),
+        ];
+        res.append(&mut encoded_args);
+        let sc_vec: ScVec = res.try_into().unwrap();
+        Ok(sc_vec.to_xdr()?)
+    }
+
+    pub fn decode_args(&self, func_name: &str, xdr_args: &[u8]) -> Result<String, Error> {
+        let func = self.find_function(func_name).unwrap();
+        let args = ScVal::from_xdr(xdr_args).unwrap();
+        let value = self.xdr_to_json(&args, &func.outputs[0])?;
+        Ok(value.to_string())
     }
 }
 
