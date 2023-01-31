@@ -1,11 +1,17 @@
 use serde_json::Value;
-use std::str::FromStr;
+use soroban_ledger_snapshot::LedgerSnapshot;
+use std::{rc::Rc, str::FromStr};
 
-use soroban_env_host::xdr::{
-    AccountId, BytesM, Error as XdrError, PublicKey, ReadXdr, ScMap, ScMapEntry, ScObject,
-    ScSpecEntry, ScSpecFunctionV0, ScSpecTypeDef, ScSpecTypeMap, ScSpecTypeOption, ScSpecTypeTuple,
-    ScSpecTypeUdt, ScSpecUdtEnumV0, ScSpecUdtStructV0, ScSpecUdtUnionV0, ScStatic, ScVal, ScVec,
-    StringM, Uint256, VecM, WriteXdr,
+use soroban_env_host::{
+    storage::Storage,
+    xdr::{
+        AccountId, BytesM, Error as XdrError, HostFunction, InvokeHostFunctionOp, LedgerFootprint,
+        LedgerKey, LedgerKeyAccount, Operation, OperationBody, PublicKey, ReadXdr, ScMap,
+        ScMapEntry, ScObject, ScSpecEntry, ScSpecFunctionV0, ScSpecTypeDef, ScSpecTypeMap,
+        ScSpecTypeOption, ScSpecTypeTuple, ScSpecTypeUdt, ScSpecUdtEnumV0, ScSpecUdtStructV0,
+        ScSpecUdtUnionV0, ScStatic, ScVal, ScVec, StringM, Uint256, VecM, WriteXdr,
+    },
+    Host,
 };
 
 use stellar_strkey::ed25519;
@@ -34,6 +40,8 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
     #[error(transparent)]
     WasmSpec(#[from] soroban_spec::read::FromWasmError),
+    #[error("{0}")]
+    Temp(String),
 }
 
 impl From<()> for Error {
@@ -527,12 +535,13 @@ impl Spec {
 impl Spec {
     pub fn encode_args(
         &self,
-        contract_id: &str,
+        contract_id: &[u8; 32],
         func_name: &str,
         json_args: &str,
     ) -> Result<ScVec, Error> {
         let func = self.find_function(func_name)?;
-        let value = serde_json::from_str::<serde_json::Value>(json_args)?;
+        let value = serde_json::from_str::<serde_json::Value>(json_args)
+            .map_err(|e| Error::Temp(format!("JSON Failed to parse {json_args}:\n{:?}", e)))?;
         let args = value.as_object().unwrap();
         let mut encoded_args = func
             .inputs
@@ -543,9 +552,7 @@ impl Spec {
             })
             .collect::<Result<Vec<_>, Error>>()?;
         let mut res = vec![
-            ScVal::Object(Some(ScObject::Bytes(
-                contract_id.as_bytes().try_into().unwrap(),
-            ))),
+            ScVal::Object(Some(ScObject::Bytes(contract_id.try_into().unwrap()))),
             ScVal::Symbol(func_name.try_into().unwrap()),
         ];
         res.append(&mut encoded_args);
@@ -553,11 +560,83 @@ impl Spec {
         Ok(sc_vec)
     }
 
+    pub fn create_op(
+        &self,
+        contract_id: &[u8; 32],
+        func_name: &str,
+        json_args: &str,
+    ) -> Result<Operation, Error> {
+        let parameters = self.encode_args(contract_id, func_name, json_args)?;
+        let footprint = LedgerFootprint {
+            read_only: VecM::default(),
+            read_write: VecM::default(),
+        };
+        Ok(Operation {
+            source_account: None,
+            body: OperationBody::InvokeHostFunction(InvokeHostFunctionOp {
+                function: HostFunction::InvokeContract(parameters),
+                footprint,
+            }),
+        })
+    }
+
     pub fn decode_args(&self, func_name: &str, xdr_args: &[u8]) -> Result<String, Error> {
         let func = self.find_function(func_name).unwrap();
         let args = ScVal::from_xdr(xdr_args).unwrap();
         let value = self.xdr_to_json(&args, &func.outputs[0])?;
         Ok(value.to_string())
+    }
+
+    pub fn run(
+        &self,
+        wasm: Vec<u8>,
+        contract_id: &str,
+        func_name: &str,
+        json_args: &str,
+    ) -> Result<String, Error> {
+        let mut state = LedgerSnapshot::default();
+        let contract_id_bytes = utils::id_from_str(contract_id).unwrap();
+        let wasm_hash =
+            utils::add_contract_code_to_ledger_entries(&mut state.ledger_entries, wasm).unwrap();
+        utils::add_contract_to_ledger_entries(
+            &mut state.ledger_entries,
+            contract_id_bytes,
+            wasm_hash.into(),
+        );
+        let default_key = stellar_strkey::ed25519::PublicKey::from_string(
+            "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+        )
+        .unwrap();
+        // Create source account, adding it to the ledger if not already present.
+        let source_account = AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(default_key.0)));
+        let source_account_ledger_key = LedgerKey::Account(LedgerKeyAccount {
+            account_id: source_account.clone(),
+        });
+        if !state
+            .ledger_entries
+            .iter()
+            .any(|(k, _)| **k == source_account_ledger_key)
+        {
+            state.ledger_entries.push((
+                Box::new(source_account_ledger_key),
+                Box::new(utils::default_account_ledger_entry(source_account.clone())),
+            ));
+        }
+        let snap = Rc::new(state.clone());
+        let storage = Storage::with_recording_footprint(snap);
+        let h = Host::with_storage_and_budget(storage, Default::default());
+
+        let mut ledger_info = state.ledger_info();
+        ledger_info.sequence_number += 1;
+        ledger_info.timestamp += 5;
+        h.set_ledger_info(ledger_info);
+        let args = self.encode_args(&contract_id_bytes, func_name, json_args)?;
+        let xdr_return = h
+            .invoke_function(HostFunction::InvokeContract(args))
+            .unwrap()
+            .to_xdr()
+            .unwrap();
+        self.decode_args(func_name, &xdr_return)
     }
 }
 

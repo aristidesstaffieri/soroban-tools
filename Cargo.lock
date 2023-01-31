@@ -2095,6 +2095,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.6",
  "soroban-env-host",
+ "soroban-ledger-snapshot",
  "soroban-spec",
  "stellar-strkey 0.0.7",
  "thiserror",

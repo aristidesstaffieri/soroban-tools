@@ -1,4 +1,4 @@
 mod strval;
-mod utils;
+pub mod utils;
 
 pub use strval::*;

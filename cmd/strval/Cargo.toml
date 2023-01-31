@@ -16,6 +16,7 @@ autobins = false
 soroban-env-host = { workspace = true, features = ["vm", "serde", "hostfn_log_fmt_values"] }
 stellar-strkey = { workspace = true }
 soroban-spec = { workspace = true }
+soroban-ledger-snapshot = { workspace = true }
 base64 = "0.13.0"
 thiserror = "1.0.31"
 serde = "1.0.82"
