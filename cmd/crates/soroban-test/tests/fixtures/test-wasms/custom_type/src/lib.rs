@@ -6,6 +6,9 @@ use soroban_sdk::{
 
 pub struct Contract;
 
+#[contracttype]
+pub struct TimePoint(u64);
+
 /// This is from the rust doc above the struct Test
 #[contracttype]
 pub struct Test {
@@ -152,9 +155,9 @@ impl Contract {
         string
     }
 
-    // pub fn timepoint(_env: Env, timepoint: TimePoint) -> TimePoint {
-    //     timepoint
-    // }
+    pub fn timepoint(_env: Env, timepoint: TimePoint) -> TimePoint {
+        timepoint
+    }
 
     // pub fn duration(_env: Env, duration: Duration) -> Duration {
     //     duration
