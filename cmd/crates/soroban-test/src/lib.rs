@@ -32,6 +32,7 @@ use fs_extra::dir::CopyOptions;
 pub use soroban_cli::commands::contract::invoke;
 use soroban_cli::{
     commands::{config, contract},
+    context::{self, Context},
     CommandParser, Pwd,
 };
 
@@ -131,7 +132,19 @@ impl TestEnv {
     /// Invoke an already parsed invoke command
     pub fn invoke_cmd(&self, mut cmd: invoke::Cmd) -> Result<String, invoke::Error> {
         cmd.set_pwd(self.dir());
-        cmd.run_in_sandbox()
+        let context = context::CommandContext::default();
+        cmd.run_in_sandbox(&context)
+    }
+
+    /// Invoke an already parsed invoke command
+    pub async fn invoke_cmd_async(
+        &self,
+        mut cmd: invoke::Cmd,
+    ) -> Result<context::CommandContext, invoke::Error> {
+        cmd.set_pwd(self.dir());
+        let context = context::CommandContext::default();
+        cmd.run(&context).await?;
+        Ok(context)
     }
 
     /// Reference to current directory of the `TestEnv`.

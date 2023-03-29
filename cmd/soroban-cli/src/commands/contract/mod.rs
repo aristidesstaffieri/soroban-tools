@@ -1,3 +1,5 @@
+use crate::context::Context;
+
 pub mod bindings;
 pub mod deploy;
 pub mod inspect;
@@ -62,13 +64,13 @@ pub enum Error {
 }
 
 impl Cmd {
-    pub async fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self, context: &impl Context) -> Result<(), Error> {
         match &self {
             Cmd::Bindings(bindings) => bindings.run()?,
             Cmd::Deploy(deploy) => deploy.run().await?,
             Cmd::Inspect(inspect) => inspect.run()?,
             Cmd::Install(install) => install.run().await?,
-            Cmd::Invoke(invoke) => invoke.run().await?,
+            Cmd::Invoke(invoke) => invoke.run(context).await?,
             Cmd::Optimize(optimize) => optimize.run()?,
             Cmd::Read(read) => read.run()?,
         }

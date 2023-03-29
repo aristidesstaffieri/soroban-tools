@@ -4,7 +4,11 @@ use std::ffi::OsString;
 use std::num::ParseIntError;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::{fmt::Debug, fs, io, rc::Rc};
+use std::{
+    fmt::{Debug, Write},
+    fs, io,
+    rc::Rc,
+};
 
 use clap::{arg, command, Parser};
 use hex::FromHexError;
@@ -29,6 +33,7 @@ use soroban_spec::read::FromWasmError;
 
 use super::super::{config, events, HEADING_SANDBOX};
 use crate::{
+    context::Context,
     rpc::{self, Client},
     strval::{self, Spec},
     utils::{self, create_ledger_footprint, default_account_ledger_entry},
@@ -90,6 +95,14 @@ impl Pwd for Cmd {
         self.config.set_pwd(pwd);
     }
 }
+
+// #[async_trait]
+// impl Run for Cmd {
+//     type Error = Error;
+//     async fn run_cmd(&self, context: &impl Context) -> Result<(), Self::Error> {
+//         self.run(context).await
+//     }
+// }
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -155,6 +168,8 @@ pub enum Error {
 
     #[error(transparent)]
     Clap(#[from] clap::Error),
+    #[error(transparent)]
+    Fmt(#[from] std::fmt::Error),
 }
 
 impl Cmd {
@@ -219,25 +234,26 @@ impl Cmd {
         ))
     }
 
-    pub async fn run(&self) -> Result<(), Error> {
-        let res = self.invoke().await?;
-        println!("{res}");
+    pub async fn run(&self, context: &impl Context) -> Result<(), Error> {
+        let res = self.invoke(context).await?;
+        writeln!(context.stdout(), "{res}")?;
         Ok(())
     }
 
-    pub async fn invoke(&self) -> Result<String, Error> {
+    pub async fn invoke(&self, context: &impl Context) -> Result<String, Error> {
         if self.config.is_no_network() {
-            self.run_in_sandbox()
+            self.run_in_sandbox(context)
         } else {
-            self.run_against_rpc_server().await
+            self.run_against_rpc_server(context).await
         }
     }
 
-    pub async fn run_against_rpc_server(&self) -> Result<String, Error> {
+    pub async fn run_against_rpc_server(&self, context: &impl Context) -> Result<String, Error> {
         let contract_id = self.contract_id()?;
         let network = &self.config.get_network()?;
         let client = Client::new(&network.rpc_url);
         let key = self.config.key_pair()?;
+        let mut stderr = context.stderr();
 
         // Get the account sequence number
         let public_strkey = stellar_strkey::ed25519::PublicKey(key.public.to_bytes()).to_string();
@@ -286,18 +302,27 @@ impl Cmd {
             .collect::<Result<Vec<_>, _>>()?;
 
         if self.footprint {
-            eprintln!("Footprint: {}", serde_json::to_string(&footprint).unwrap());
+            writeln!(
+                stderr,
+                "Footprint: {}",
+                serde_json::to_string(&footprint).unwrap()
+            )?;
         }
 
         if self.auth {
-            eprintln!("Contract auth: {}", serde_json::to_string(&auth).unwrap());
+            writeln!(
+                stderr,
+                "Contract auth: {}",
+                serde_json::to_string(&auth).unwrap()
+            )?;
         }
 
         if self.events {
-            eprintln!(
+            writeln!(
+                stderr,
                 "Simulated events: {}",
                 serde_json::to_string(&events).unwrap()
-            );
+            )?;
         }
 
         // Send the final transaction with the actual footprint
@@ -327,15 +352,16 @@ impl Cmd {
             _ => return Err(Error::MissingOperationResult),
         };
         if self.events {
-            eprintln!(
+            writeln!(
+                stderr,
                 "Simulated events: {}",
                 serde_json::to_string(&events).unwrap()
-            );
+            )?;
         }
         output_to_string(&spec, &res, &function)
     }
 
-    pub fn run_in_sandbox(&self) -> Result<String, Error> {
+    pub fn run_in_sandbox(&self, context: &impl Context) -> Result<String, Error> {
         let contract_id = self.contract_id()?;
         // Initialize storage and host
         // TODO: allow option to separate input and output file
@@ -410,37 +436,45 @@ impl Cmd {
             ))
         })?;
 
+        let mut stderr = context.stderr();
+
         if self.footprint {
-            eprintln!(
+            writeln!(
+                stderr,
                 "Footprint: {}",
                 serde_json::to_string(&create_ledger_footprint(&storage.footprint)).unwrap(),
-            );
+            )?;
         }
 
         if self.auth {
-            eprintln!(
+            writeln!(
+                stderr,
                 "Contract auth: {}",
                 serde_json::to_string(&contract_auth).unwrap(),
-            );
+            )?;
         }
 
         if self.cost {
-            eprintln!("Cpu Insns: {}", budget.get_cpu_insns_count());
-            eprintln!("Mem Bytes: {}", budget.get_mem_bytes_count());
+            writeln!(stderr, "Cpu Insns: {}", budget.get_cpu_insns_count())?;
+            writeln!(stderr, "Mem Bytes: {}", budget.get_mem_bytes_count())?;
             for cost_type in CostType::variants() {
-                eprintln!("Cost ({cost_type:?}): {}", budget.get_input(*cost_type));
+                writeln!(
+                    stderr,
+                    "Cost ({cost_type:?}): {}",
+                    budget.get_input(*cost_type)
+                )?;
             }
         }
 
         for (i, event) in events.0.iter().enumerate() {
-            eprint!("#{i}: ");
+            write!(stderr, "#{i}: ");
             match &event.event {
                 Event::Contract(e) => {
-                    eprintln!("event: {}", serde_json::to_string(&e).unwrap());
+                    writeln!(stderr, "event: {}", serde_json::to_string(&e).unwrap())?
                 }
-                Event::Debug(e) => eprintln!("debug: {e}"),
+                Event::Debug(e) => writeln!(stderr, "debug: {e}")?,
                 // TODO: print structued debug events in a nicer way
-                Event::StructuredDebug(e) => eprintln!("structured debug: {e:?}"),
+                Event::StructuredDebug(e) => writeln!(stderr, "structured debug: {e:?}")?,
             }
         }
 

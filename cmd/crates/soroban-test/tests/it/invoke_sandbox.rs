@@ -1,4 +1,4 @@
-use soroban_cli::commands::contract;
+use soroban_cli::{commands::contract, context::Context};
 use soroban_test::TestEnv;
 
 use crate::util::{
@@ -97,6 +97,24 @@ fn invoke_hello_world_with_lib() {
         let res = e.invoke_cmd(cmd).unwrap();
         assert_eq!(res, r#"["Hello","world"]"#);
     });
+}
+
+#[tokio::test]
+async fn invoke_hello_world_with_lib_async() {
+    let test_env = TestEnv::default();
+    let cmd = contract::invoke::Cmd {
+        contract_id: "1".to_string(),
+        wasm: Some(HELLO_WORLD.path()),
+        slop: vec!["hello".into(), "--world=world".into()],
+        ..Default::default()
+    };
+    let res = test_env.invoke_cmd_async(cmd).await.unwrap();
+    let res = res.get_stdout();
+    assert_eq!(
+        res,
+        r#"["Hello","world"]
+"#
+    );
 }
 
 #[test]

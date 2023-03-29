@@ -1,5 +1,11 @@
+use std::fmt::Write;
+
 use clap::CommandFactory;
-use soroban_cli::Root;
+
+use soroban_cli::{
+    context::{CommandContext, Context},
+    Root,
+};
 
 #[tokio::main]
 async fn main() {
@@ -7,8 +13,18 @@ async fn main() {
         let mut cmd = Root::command();
         e.format(&mut cmd).exit();
     });
+    let context = CommandContext::default();
+    if let Err(e) = root.run(&context).await {
+        writeln!(context.stderr(), "error: {e}").unwrap();
+    }
 
-    if let Err(e) = root.run().await {
-        eprintln!("error: {e}");
+    let stdout = context.get_stdout();
+    if !stdout.is_empty() {
+        print!("{stdout}");
+    }
+
+    let stderr = context.get_stderr();
+    if !stderr.is_empty() {
+        eprint!("{stderr}");
     }
 }

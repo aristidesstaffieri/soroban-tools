@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use clap::{command, CommandFactory, FromArgMatches, Parser};
 
+use crate::context::Context;
+
 pub mod completion;
 pub mod config;
 pub mod contract;
@@ -66,9 +68,9 @@ impl Root {
     {
         Self::from_arg_matches_mut(&mut Self::command().get_matches_from(itr))
     }
-    pub async fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self, context: &impl Context) -> Result<(), Error> {
         match &self.cmd {
-            Cmd::Contract(contract) => contract.run().await?,
+            Cmd::Contract(contract) => contract.run(context).await?,
             Cmd::Events(events) => events.run().await?,
             Cmd::Lab(lab) => lab.run().await?,
             Cmd::Version(version) => version.run(),
