@@ -34,6 +34,7 @@ impl Write for Stderr {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Default)]
 pub struct CommandContext {
     stdout: Rc<RefCell<String>>,
@@ -80,7 +81,7 @@ pub trait Run: Sync {
     async fn run_cmd(&self, context: &impl Context) -> Result<(), Self::Error>;
 }
 
-pub struct DefaultContext;
+// pub struct DefaultContext;
 
 // #[allow(unused_variables)]
 // impl Context for DefaultContext {

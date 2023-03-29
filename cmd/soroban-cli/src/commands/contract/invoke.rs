@@ -12,6 +12,7 @@ use std::{
 
 use clap::{arg, command, Parser};
 use hex::FromHexError;
+use soroban_env_host::events::Events;
 use soroban_env_host::xdr::{DiagnosticEvent, ScBytes, ScContractExecutable, ScSpecFunctionV0};
 use soroban_env_host::Host;
 use soroban_env_host::{
@@ -436,6 +437,32 @@ impl Cmd {
             ))
         })?;
 
+        self.config.set_state(&mut state)?;
+
+        self.print_data(context, &budget, &events, &storage, &contract_auth)?;
+
+        if !events.0.is_empty() {
+            let event_path = self.events_file_path()?;
+
+            events::commit(&events.0, &state, &event_path).map_err(|e| {
+                Error::CannotCommitEventsFile {
+                    filepath: event_path,
+                    error: e,
+                }
+            })?;
+        }
+
+        Ok(res_str)
+    }
+
+    pub fn print_data(
+        &self,
+        context: &impl Context,
+        budget: &Budget,
+        events: &Events,
+        storage: &Storage,
+        contract_auth: &[ContractAuth],
+    ) -> Result<(), Error> {
         let mut stderr = context.stderr();
 
         if self.footprint {
@@ -467,31 +494,17 @@ impl Cmd {
         }
 
         for (i, event) in events.0.iter().enumerate() {
-            write!(stderr, "#{i}: ");
+            write!(stderr, "#{i}: ")?;
             match &event.event {
                 Event::Contract(e) => {
-                    writeln!(stderr, "event: {}", serde_json::to_string(&e).unwrap())?
+                    writeln!(stderr, "event: {}", serde_json::to_string(&e).unwrap())?;
                 }
                 Event::Debug(e) => writeln!(stderr, "debug: {e}")?,
                 // TODO: print structued debug events in a nicer way
                 Event::StructuredDebug(e) => writeln!(stderr, "structured debug: {e:?}")?,
             }
         }
-
-        self.config.set_state(&mut state)?;
-
-        if !events.0.is_empty() {
-            let event_path = self.events_file_path()?;
-
-            events::commit(&events.0, &state, &event_path).map_err(|e| {
-                Error::CannotCommitEventsFile {
-                    filepath: event_path,
-                    error: e,
-                }
-            })?;
-        }
-
-        Ok(res_str)
+        Ok(())
     }
 
     pub fn deploy_contract_in_sandbox(

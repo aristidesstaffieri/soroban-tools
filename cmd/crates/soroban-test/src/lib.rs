@@ -32,8 +32,7 @@ use fs_extra::dir::CopyOptions;
 pub use soroban_cli::commands::contract::invoke;
 use soroban_cli::{
     commands::{config, contract},
-    context::{self, Context},
-    CommandParser, Pwd,
+    context, CommandParser, Pwd,
 };
 
 mod wasm;
