@@ -130,8 +130,8 @@ Deploy a contract
 * `--ledger-file <LEDGER_FILE>` — File to persist ledger state, default is `.soroban/ledger.json`
 * `--source-account <SOURCE_ACCOUNT>` — Account that signs the final transaction. S...          a seceret key alice         an identity 'kite urban.  a seed phrase DEFAULT       Is the key generated with `identity generate --seed 0000000000000000
 * `--hd-path <HD_PATH>` — If using a seed phrase, which hd path to use, e.g. `m/44'/148'/{hd_path}`
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -162,8 +162,8 @@ Install a WASM file to the ledger without creating a contract instance
 * `--ledger-file <LEDGER_FILE>` — File to persist ledger state, default is `.soroban/ledger.json`
 * `--source-account <SOURCE_ACCOUNT>` — Account that signs the final transaction. S...          a seceret key alice         an identity 'kite urban.  a seed phrase DEFAULT       Is the key generated with `identity generate --seed 0000000000000000
 * `--hd-path <HD_PATH>` — If using a seed phrase, which hd path to use, e.g. `m/44'/148'/{hd_path}`
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -197,8 +197,8 @@ soroban contract invoke ... -- --help
 * `--ledger-file <LEDGER_FILE>` — File to persist ledger state, default is `.soroban/ledger.json`
 * `--source-account <SOURCE_ACCOUNT>` — Account that signs the final transaction. S...          a seceret key alice         an identity 'kite urban.  a seed phrase DEFAULT       Is the key generated with `identity generate --seed 0000000000000000
 * `--hd-path <HD_PATH>` — If using a seed phrase, which hd path to use, e.g. `m/44'/148'/{hd_path}`
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -239,8 +239,8 @@ Print the current value of a contract-data ledger entry
     XDR
 
 * `--ledger-file <LEDGER_FILE>` — File to persist ledger state, default is `.soroban/ledger.json`
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -288,8 +288,8 @@ Add a new identity (keypair, ledger, macOS keychain)
 
 * `--secret-key` — Add using secret_key Can provide with SOROBAN_SECRET_KEY
 * `--seed-phrase` — Add using 12 word seed phrase to generate secret_key
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -306,8 +306,8 @@ Given an identity return its address (public key)
 ###### **Options:**
 
 * `--hd-path <HD_PATH>` — If identity is a seed phrase use this hd path, default is 0
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -325,8 +325,8 @@ Generate a new identity with a seed phrase, currently 12 words
 
 * `--seed <SEED>` — Optional seed to use when generating seed phrase. Random otherwise
 * `-s`, `--as-secret` — Output the generated identity as a secret key
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 * `--hd-path <HD_PATH>` — When generating a secret key, which hd_path should be used from the original seed_phrase
 * `-d`, `--default-seed` — Generate the default seed phrase. Useful for testing. Equivalent to --seed 0000000000000000
 
@@ -340,8 +340,8 @@ List identities
 
 ###### **Options:**
 
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -357,8 +357,8 @@ Remove an identity
 
 ###### **Options:**
 
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -375,8 +375,8 @@ Given an identity return its private key
 ###### **Options:**
 
 * `--hd-path <HD_PATH>` — If identity is a seed phrase use this hd path, default is 0
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -408,8 +408,8 @@ Add a new network
 
 * `--rpc-url <RPC_URL>` — RPC server endpoint
 * `--network-passphrase <NETWORK_PASSPHRASE>` — Network passphrase to sign the transaction sent to the rpc server
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -425,8 +425,8 @@ Remove a network
 
 ###### **Options:**
 
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -438,8 +438,8 @@ List networks
 
 ###### **Options:**
 
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
@@ -521,8 +521,8 @@ Deploy a token contract to wrap an existing Stellar classic asset for smart cont
 * `--ledger-file <LEDGER_FILE>` — File to persist ledger state, default is `.soroban/ledger.json`
 * `--source-account <SOURCE_ACCOUNT>` — Account that signs the final transaction. S...          a seceret key alice         an identity 'kite urban.  a seed phrase DEFAULT       Is the key generated with `identity generate --seed 0000000000000000
 * `--hd-path <HD_PATH>` — If using a seed phrase, which hd path to use, e.g. `m/44'/148'/{hd_path}`
-* `--global` — Use global config
-* `--pwd <PWD>`
+* `--global` — Use global config. Located either in $XDG_CONFIG_HOME or ~/.config
+* `--config-dir <CONFIG_DIR>` — Directory that contains the config directory `.soroban`
 
 
 
