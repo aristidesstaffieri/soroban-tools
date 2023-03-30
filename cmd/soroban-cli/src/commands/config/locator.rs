@@ -63,12 +63,13 @@ pub enum Error {
 #[derive(Debug, clap::Args, Default, Clone)]
 #[group(skip)]
 pub struct Args {
-    /// Use global config
-    #[arg(long)]
+    /// Use global config. Located either in $XDG_CONFIG_HOME or ~/.config.
+    #[arg(long, conflicts_with("config_dir"))]
     pub global: bool,
 
-    #[arg(long)]
-    pub pwd: Option<PathBuf>,
+    /// Directory that contains the config directory `.soroban`.
+    #[arg(long, conflicts_with("global"))]
+    pub config_dir: Option<PathBuf>,
 }
 
 impl Args {
@@ -86,7 +87,7 @@ impl Args {
     }
 
     pub fn current_dir(&self) -> Result<PathBuf, Error> {
-        self.pwd.as_ref().map_or_else(
+        self.config_dir.as_ref().map_or_else(
             || std::env::current_dir().map_err(|_| Error::CurrentDirNotFound),
             |pwd| Ok(pwd.clone()),
         )
@@ -242,6 +243,6 @@ fn global_config_path() -> Result<PathBuf, Error> {
 
 impl Pwd for Args {
     fn set_pwd(&mut self, pwd: &Path) {
-        self.pwd = Some(pwd.to_path_buf());
+        self.config_dir = Some(pwd.to_path_buf());
     }
 }
