@@ -33,7 +33,7 @@ impl Contract {
     }
 
     #[allow(unused_variables)]
-    pub fn multi_word_cmd(env: Env, contract_owner: Adress) {}
+    pub fn multi_word_cmd(env: Env, contract_owner: Address) {}
 }
 
 #[cfg(test)]
