@@ -26,6 +26,7 @@ use soroban_env_host::{
     },
     HostError,
 };
+use soroban_sdk::token;
 use soroban_spec::read::FromWasmError;
 
 use super::super::{
@@ -441,7 +442,7 @@ impl Cmd {
             eprintln!("Cpu Insns: {}", budget.get_cpu_insns_count());
             eprintln!("Mem Bytes: {}", budget.get_mem_bytes_count());
             for cost_type in CostType::variants() {
-                eprintln!("Cost ({cost_type:?}): {}", budget.get_input(*cost_type));
+                eprintln!("Cost ({cost_type:?}): {}", budget.get_tracker(*cost_type).0);
             }
         }
 
@@ -596,7 +597,7 @@ async fn get_remote_contract_spec_entries(
         LedgerEntryData::ContractData(ContractDataEntry {
             val: ScVal::ContractExecutable(ScContractExecutable::Token),
             ..
-        }) => soroban_spec::read::parse_raw(&soroban_token_spec::spec_xdr())
+        }) => soroban_spec::read::parse_raw(&token::Spec::spec_xdr())
             .map_err(FromWasmError::Parse)
             .map_err(Error::CannotParseContractSpec)?,
         scval => return Err(Error::UnexpectedContractCodeDataType(scval)),
