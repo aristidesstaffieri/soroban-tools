@@ -565,7 +565,7 @@ async fn get_remote_contract_spec_entries(
         LedgerEntryData::ContractData(ContractDataEntry {
             val: ScVal::ContractExecutable(ScContractExecutable::Token),
             ..
-        }) => soroban_spec::read::parse_raw(&soroban_token_spec::spec_xdr())
+        }) => soroban_spec::read::parse_raw(&soroban_sdk::token::Spec::spec_xdr())
             .map_err(FromWasmError::Parse)
             .map_err(Error::CannotParseContractSpec)?,
         scval => return Err(Error::UnexpectedContractCodeDataType(scval)),
