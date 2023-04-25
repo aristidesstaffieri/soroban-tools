@@ -17,7 +17,6 @@ use soroban_env_host::{
     },
 };
 use soroban_ledger_snapshot::LedgerSnapshot;
-use soroban_sdk::token::Spec;
 use soroban_spec::read::FromWasmError;
 use stellar_strkey::ed25519::PrivateKey;
 
@@ -184,7 +183,7 @@ pub fn get_contract_spec_from_storage(
                 ..
             } => match c {
                 ScContractExecutable::Token => {
-                    let res = soroban_spec::read::parse_raw(&Spec::spec_xdr());
+                    let res = soroban_spec::read::parse_raw(&soroban_sdk::token::Spec::spec_xdr());
                     res.map_err(FromWasmError::Parse)
                 }
                 ScContractExecutable::WasmRef(hash) => {
@@ -303,4 +302,19 @@ pub(crate) fn parse_secret_key(
     s: &str,
 ) -> Result<ed25519_dalek::Keypair, ed25519_dalek::SignatureError> {
     into_key_pair(&PrivateKey::from_string(s).unwrap())
+}
+
+#[allow(clippy::cast_possible_truncation)]
+pub fn split_u128_to_u64s(value: u128) -> (u64, u64) {
+    let high = (value >> 64) as u64; // Shift right by 64 bits to get the high part
+    let low = value as u64; // Truncate to u64 to get the low part
+    (high, low)
+}
+
+#[allow(clippy::cast_lossless)]
+
+pub fn combine_u64s_to_u128(high: u64, low: u64) -> u128 {
+    let high_u128 = (high as u128) << 64; // Convert high to u128 and shift left by 64 bits
+    let low_u128 = low as u128; // Convert low to u128
+    high_u128 | low_u128 // Combine the high and low parts using bitwise OR
 }

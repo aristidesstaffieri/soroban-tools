@@ -1921,6 +1921,7 @@ dependencies = [
  "soroban-ledger-snapshot",
  "soroban-sdk",
  "soroban-spec",
+ "soroban-token-sdk",
  "stellar-strkey 0.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "strsim",
  "termcolor",
@@ -2088,9 +2089,18 @@ dependencies = [
  "soroban-ledger-snapshot",
  "soroban-sdk",
  "soroban-spec",
+ "soroban-token-sdk",
  "stellar-strkey 0.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "which",
+]
+
+[[package]]
+name = "soroban-token-sdk"
+version = "0.7.0"
+source = "git+https://github.com/stellar/rs-soroban-sdk?rev=9bbac60c25cee9aa995025db5af828c243d15690#9bbac60c25cee9aa995025db5af828c243d15690"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]
