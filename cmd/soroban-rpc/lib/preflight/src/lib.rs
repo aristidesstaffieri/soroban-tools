@@ -233,22 +233,20 @@ fn recorded_auth_payload_to_xdr(payload: &RecordedAuthPayload) -> ContractAuth {
 }
 
 fn host_events_to_c(events: Events) -> Result<*mut *mut libc::c_char, Box<dyn error::Error>> {
-    let mut xdr_base64_vec: Vec<String> = Vec::new();
-    for e in events.0.iter() {
-        let maybe_contract_event = match &e.event {
-            Event::Contract(e) => Some(e),
-            Event::StructuredDebug(e) => Some(e),
-            // Debug events can't be translated to diagnostic events
+    let xdr_base64_vec: Vec<String> = events
+        .0
+        .iter()
+        .filter_map(|e| match &e.event {
+            (Event::StructuredDebug(event) | Event::Contract(event)) => Some(
+                DiagnosticEvent {
+                    in_successful_contract_call: !e.failed_call,
+                    event: event.clone(),
+                }
+                .to_xdr_base64(),
+            ),
             Event::Debug(_) => None,
-        };
-        if let Some(contract_event) = maybe_contract_event {
-            let diagnostic_event = DiagnosticEvent {
-                in_successful_contract_call: !e.failed_call,
-                event: contract_event.clone(),
-            };
-            xdr_base64_vec.push(diagnostic_event.to_xdr_base64()?);
-        }
-    }
+        })
+        .collect::<Result<Vec<String>, _>>()?;
     string_vec_to_c_to_null_terminated_char_array(xdr_base64_vec)
 }
 
@@ -256,7 +254,7 @@ fn string_vec_to_c_to_null_terminated_char_array(
     v: Vec<String>,
 ) -> Result<*mut *mut libc::c_char, Box<dyn error::Error>> {
     let mut out_vec: Vec<*mut libc::c_char> = Vec::new();
-    for s in v.iter() {
+    for s in &v {
         let c_str = CString::new(s.clone())?.into_raw();
         out_vec.push(c_str);
     }
@@ -289,13 +287,13 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
     }
     unsafe {
         if !(*result).error.is_null() {
-            let _ = CString::from_raw((*result).error);
+            _ = CString::from_raw((*result).error);
         }
         if !(*result).result.is_null() {
-            let _ = CString::from_raw((*result).result);
+            _ = CString::from_raw((*result).result);
         }
         if !(*result).footprint.is_null() {
-            let _ = CString::from_raw((*result).footprint);
+            _ = CString::from_raw((*result).footprint);
         }
         if !(*result).auth.is_null() {
             free_c_null_terminated_char_array((*result).auth);
@@ -303,7 +301,7 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
         if !(*result).events.is_null() {
             free_c_null_terminated_char_array((*result).events);
         }
-        let _ = Box::from_raw(result);
+        _ = Box::from_raw(result);
     }
 }
 
@@ -317,10 +315,10 @@ fn free_c_null_terminated_char_array(array: *mut *mut libc::c_char) {
                 break;
             }
             // deallocate each base64 string
-            let _ = CString::from_raw(c_char_ptr);
+            _ = CString::from_raw(c_char_ptr);
             i += 1;
         }
         // deallocate the containing vector
-        let _ = Vec::from_raw_parts(array, i + 1, i + 1);
+        _ = Vec::from_raw_parts(array, i + 1, i + 1);
     }
 }
