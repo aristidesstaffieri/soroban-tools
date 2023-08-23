@@ -24,7 +24,7 @@ use tokio::time::sleep;
 use crate::utils::{self, contract_spec};
 
 mod transaction;
-use transaction::{assemble, sign_soroban_authorizations};
+use transaction::{assemble, build_restore_txn, sign_soroban_authorizations};
 
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
 
@@ -201,7 +201,18 @@ pub struct SimulateHostFunctionResult {
     pub xdr: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct SimulateTransactionResponseRestorePreamble {
+    #[serde(rename = "transactionData")]
+    pub transaction_data: String,
+    #[serde(
+        rename = "minResourceFee",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub min_resource_fee: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct SimulateTransactionResponse {
     #[serde(
         rename = "minResourceFee",
@@ -231,7 +242,9 @@ pub struct SimulateTransactionResponse {
         rename = "latestLedger",
         deserialize_with = "deserialize_number_from_string"
     )]
-    pub latest_ledger: u64,
+    pub latest_ledger: u32,
+    #[serde(rename = "restorePreamble")]
+    restore_preamble: Option<SimulateTransactionResponseRestorePreamble>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error: Option<String>,
 }
@@ -626,7 +639,13 @@ soroban config identity fund {address} --helper-url <url>"#
     pub async fn prepare_transaction(
         &self,
         tx: &Transaction,
-    ) -> Result<(Transaction, Vec<DiagnosticEvent>), Error> {
+    ) -> Result<
+        (
+            Transaction,
+            Option<SimulateTransactionResponseRestorePreamble>,
+        ),
+        Error,
+    > {
         tracing::trace!(?tx);
         let sim_response = self
             .simulate_transaction(&TransactionEnvelope::Tx(TransactionV1Envelope {
@@ -634,14 +653,10 @@ soroban config identity fund {address} --helper-url <url>"#
                 signatures: VecM::default(),
             }))
             .await?;
-
-        let events = sim_response
-            .events
-            .iter()
-            .map(DiagnosticEvent::from_xdr_base64)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok((assemble(tx, &sim_response)?, events))
+        Ok((
+            assemble(tx, &sim_response, log_events)?,
+            sim_response.restore_preamble,
+        ))
     }
 
     pub async fn prepare_and_send_transaction(
@@ -654,7 +669,20 @@ soroban config identity fund {address} --helper-url <url>"#
         log_resources: Option<LogResources>,
     ) -> Result<(TransactionResult, TransactionMeta, Vec<DiagnosticEvent>), Error> {
         let GetLatestLedgerResponse { sequence, .. } = self.get_latest_ledger().await?;
-        let (unsigned_tx, events) = self.prepare_transaction(tx_without_preflight).await?;
+        let (mut unsigned_tx, restore_preamble) = self
+            .prepare_transaction(tx_without_preflight, log_events)
+            .await?;
+        if let Some(restore) = restore_preamble {
+            // Build and submit the restore transaction
+            self.send_transaction(&utils::sign_transaction(
+                source_key,
+                &build_restore_txn(&unsigned_tx, &restore)?,
+                network_passphrase,
+            )?)
+            .await?;
+            // Increment the original txn's seq_num so it doesn't conflict
+            unsigned_tx.seq_num = SequenceNumber(unsigned_tx.seq_num.0 + 1);
+        }
         let (part_signed_tx, signed_auth_entries) = sign_soroban_authorizations(
             &unsigned_tx,
             source_key,
@@ -666,7 +694,9 @@ soroban config identity fund {address} --helper-url <url>"#
             (part_signed_tx, events)
         } else {
             // re-simulate to calculate the new fees
-            self.prepare_transaction(&part_signed_tx).await?
+            self.prepare_transaction(&part_signed_tx, log_events)
+                .await?
+                .0
         };
 
         // Try logging stuff if requested

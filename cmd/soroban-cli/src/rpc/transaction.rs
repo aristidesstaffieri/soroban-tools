@@ -213,6 +213,29 @@ pub fn sign_soroban_authorization_entry(
     Ok(auth)
 }
 
+pub fn build_restore_txn(
+    parent: &Transaction,
+    restore: &SimulateTransactionResponseRestorePreamble,
+) -> Result<Transaction, Error> {
+    let transaction_data = SorobanTransactionData::from_xdr_base64(restore.transaction_data)?;
+    Ok(Transaction {
+        source_account: parent.source_account.clone(),
+        fee: parent.fee + restore.min_resource_fee,
+        seq_num: parent.seq_num,
+        cond: Preconditions::None,
+        memo: Memo::None,
+        operations: vec![Operation {
+            source_account: None,
+            body: OperationBody::RestoreFootprint(RestoreFootprintOp {
+                ext: ExtensionPoint::V0,
+            }),
+        }]
+        .try_into()
+        .unwrap(),
+        ext: TransactionExt::V1(transaction_data),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
