@@ -217,11 +217,12 @@ pub fn build_restore_txn(
     parent: &Transaction,
     restore: &SimulateTransactionResponseRestorePreamble,
 ) -> Result<Transaction, Error> {
-    let transaction_data = SorobanTransactionData::from_xdr_base64(restore.transaction_data)?;
+    let transaction_data =
+        SorobanTransactionData::from_xdr_base64(restore.transaction_data.clone())?;
     Ok(Transaction {
         source_account: parent.source_account.clone(),
         fee: parent.fee + restore.min_resource_fee,
-        seq_num: parent.seq_num,
+        seq_num: parent.seq_num.clone(),
         cond: Preconditions::None,
         memo: Memo::None,
         operations: vec![Operation {
