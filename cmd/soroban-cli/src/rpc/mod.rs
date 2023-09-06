@@ -4,13 +4,13 @@ use jsonrpsee_core::params::ObjectParams;
 use jsonrpsee_core::{self, client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use serde_aux::prelude::{deserialize_default_from_null, deserialize_number_from_string};
-use soroban_env_host::xdr::DepthLimitedRead;
 use soroban_env_host::xdr::{
     self, AccountEntry, AccountId, ContractDataEntry, DiagnosticEvent, Error as XdrError,
     LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, PublicKey, ReadXdr,
     SorobanAuthorizationEntry, SorobanResources, Transaction, TransactionEnvelope, TransactionMeta,
     TransactionMetaV3, TransactionResult, TransactionV1Envelope, Uint256, VecM, WriteXdr,
 };
+use soroban_env_host::xdr::{DepthLimitedRead, SequenceNumber};
 use soroban_sdk::token;
 use std::{
     fmt::Display,
@@ -201,18 +201,7 @@ pub struct SimulateHostFunctionResult {
     pub xdr: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-pub struct SimulateTransactionResponseRestorePreamble {
-    #[serde(rename = "transactionData")]
-    pub transaction_data: String,
-    #[serde(
-        rename = "minResourceFee",
-        deserialize_with = "deserialize_number_from_string"
-    )]
-    pub min_resource_fee: u32,
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
 pub struct SimulateTransactionResponse {
     #[serde(
         rename = "minResourceFee",
@@ -243,13 +232,11 @@ pub struct SimulateTransactionResponse {
         deserialize_with = "deserialize_number_from_string"
     )]
     pub latest_ledger: u32,
-    #[serde(rename = "restorePreamble")]
-    restore_preamble: Option<SimulateTransactionResponseRestorePreamble>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error: Option<String>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
 pub struct RestorePreamble {
     #[serde(rename = "transactionData")]
     pub transaction_data: String,
@@ -639,13 +626,7 @@ soroban config identity fund {address} --helper-url <url>"#
     pub async fn prepare_transaction(
         &self,
         tx: &Transaction,
-    ) -> Result<
-        (
-            Transaction,
-            Option<SimulateTransactionResponseRestorePreamble>,
-        ),
-        Error,
-    > {
+    ) -> Result<(Transaction, Option<RestorePreamble>), Error> {
         tracing::trace!(?tx);
         let sim_response = self
             .simulate_transaction(&TransactionEnvelope::Tx(TransactionV1Envelope {
@@ -653,10 +634,7 @@ soroban config identity fund {address} --helper-url <url>"#
                 signatures: VecM::default(),
             }))
             .await?;
-        Ok((
-            assemble(tx, &sim_response, log_events)?,
-            sim_response.restore_preamble,
-        ))
+        Ok((assemble(tx, &sim_response)?, sim_response.restore_preamble))
     }
 
     pub async fn prepare_and_send_transaction(
@@ -669,9 +647,8 @@ soroban config identity fund {address} --helper-url <url>"#
         log_resources: Option<LogResources>,
     ) -> Result<(TransactionResult, TransactionMeta, Vec<DiagnosticEvent>), Error> {
         let GetLatestLedgerResponse { sequence, .. } = self.get_latest_ledger().await?;
-        let (mut unsigned_tx, restore_preamble) = self
-            .prepare_transaction(tx_without_preflight, log_events)
-            .await?;
+        let (mut unsigned_tx, restore_preamble) =
+            self.prepare_transaction(tx_without_preflight).await?;
         if let Some(restore) = restore_preamble {
             // Build and submit the restore transaction
             self.send_transaction(&utils::sign_transaction(
@@ -690,13 +667,11 @@ soroban config identity fund {address} --helper-url <url>"#
             sequence + 60, // ~5 minutes of ledgers
             network_passphrase,
         )?;
-        let (fee_ready_txn, events) = if signed_auth_entries.is_empty() {
-            (part_signed_tx, events)
+        let fee_ready_txn = if signed_auth_entries.is_empty() {
+            part_signed_tx
         } else {
             // re-simulate to calculate the new fees
-            self.prepare_transaction(&part_signed_tx, log_events)
-                .await?
-                .0
+            self.prepare_transaction(&part_signed_tx).await?.0
         };
 
         // Try logging stuff if requested
@@ -714,7 +689,7 @@ soroban config identity fund {address} --helper-url <url>"#
                     ..
                 } = &fee_ready_txn.operations[0]
                 {
-                    log(&resources.footprint, &[auth.clone()], &events);
+                    log(&resources.footprint, &[auth.clone()], &[]);
                 }
             }
             if let Some(log) = log_resources {
