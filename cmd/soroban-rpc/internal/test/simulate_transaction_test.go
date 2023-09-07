@@ -853,7 +853,7 @@ func TestInstallContractWithCLI(t *testing.T) {
 		IncrementSequenceNum: false,
 		Operations: []txnbuild.Operation{&txnbuild.CreateAccount{
 			Destination: "GDIY6AQQ75WMD4W46EYB7O6UYMHOCGQHLAQGQTKHDX4J2DYQCHVCR4W4",
-			Amount:      "100000",
+			Amount:      "1000000",
 		}},
 		BaseFee: txnbuild.MinBaseFee,
 		Memo:    nil,
@@ -866,6 +866,7 @@ func TestInstallContractWithCLI(t *testing.T) {
 	cmd := exec.Command("cargo", "run", "--", "--vv", "contract", "install", "--wasm", "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm", "--rpc-url", "http://localhost:8000/", "--network-passphrase", "Standalone Network ; February 2017")
 	require.NoError(t, err)
 	res, err := cmd.Output()
+	println(string(res))
 	require.NoError(t, err)
 	wasm := getHelloWorldContract(t)
 	contractHash := xdr.Hash(sha256.Sum256(wasm))

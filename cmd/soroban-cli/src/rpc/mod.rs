@@ -626,7 +626,7 @@ soroban config identity fund {address} --helper-url <url>"#
     pub async fn prepare_transaction(
         &self,
         tx: &Transaction,
-    ) -> Result<(Transaction, Option<RestorePreamble>), Error> {
+    ) -> Result<(Transaction, Option<RestorePreamble>, Vec<DiagnosticEvent>), Error> {
         tracing::trace!(?tx);
         let sim_response = self
             .simulate_transaction(&TransactionEnvelope::Tx(TransactionV1Envelope {
@@ -634,7 +634,18 @@ soroban config identity fund {address} --helper-url <url>"#
                 signatures: VecM::default(),
             }))
             .await?;
-        Ok((assemble(tx, &sim_response)?, sim_response.restore_preamble))
+        let events = sim_response
+            .events
+            .iter()
+            .map(DiagnosticEvent::from_xdr_base64)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((
+            assemble(tx, &sim_response)?,
+            sim_response
+                .restore_preamble
+                .filter(|p| !p.transaction_data.is_empty()),
+            events,
+        ))
     }
 
     pub async fn prepare_and_send_transaction(
@@ -647,7 +658,7 @@ soroban config identity fund {address} --helper-url <url>"#
         log_resources: Option<LogResources>,
     ) -> Result<(TransactionResult, TransactionMeta, Vec<DiagnosticEvent>), Error> {
         let GetLatestLedgerResponse { sequence, .. } = self.get_latest_ledger().await?;
-        let (mut unsigned_tx, restore_preamble) =
+        let (mut unsigned_tx, restore_preamble, events) =
             self.prepare_transaction(tx_without_preflight).await?;
         if let Some(restore) = restore_preamble {
             // Build and submit the restore transaction
@@ -689,7 +700,7 @@ soroban config identity fund {address} --helper-url <url>"#
                     ..
                 } = &fee_ready_txn.operations[0]
                 {
-                    log(&resources.footprint, &[auth.clone()], &[]);
+                    log(&resources.footprint, &[auth.clone()], &events);
                 }
             }
             if let Some(log) = log_resources {
