@@ -863,12 +863,29 @@ func TestInstallContractWithCLI(t *testing.T) {
 	})
 	require.NoError(t, err)
 	sendSuccessfulTransaction(t, client, sourceAccount, tx)
-	cmd := exec.Command("cargo", "run", "--", "--vv", "contract", "install", "--wasm", "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm", "--rpc-url", "http://localhost:8000/", "--network-passphrase", "Standalone Network ; February 2017")
-	require.NoError(t, err)
-	res, err := cmd.Output()
+	contractHash := InstallContract(t)
+	cmd := exec.Command("cargo", "run", "--", "contract", "deploy", "--wasm-hash", contractHash, "--salt=0")
+	cmd.Env = EnvForCLI()
+	res, err := cmd.CombinedOutput()
 	println(string(res))
+	require.NoError(t, err)
+	require.Contains(t, string(res), "C")
+}
+
+func EnvForCLI() []string {
+	env := os.Environ()
+	env = append(env, "SOROBAN_RPC_URL=http://localhost:8000/", "SOROBAN_NETWORK_PASSPHRASE=Standalone Network ; February 2017")
+	return env
+}
+
+func InstallContract(t *testing.T) string {
+	cmd := exec.Command("cargo", "run", "--", "contract", "install", "--wasm", "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm")
+	cmd.Env = EnvForCLI()
+	res, err := cmd.Output()
 	require.NoError(t, err)
 	wasm := getHelloWorldContract(t)
 	contractHash := xdr.Hash(sha256.Sum256(wasm))
-	require.Contains(t, string(res), contractHash.HexString())
+	hash := contractHash.HexString()
+	require.Contains(t, string(res), hash)
+	return hash
 }
