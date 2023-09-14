@@ -1,32 +1,48 @@
 {
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"postinstall": "curl -X POST \"http://localhost:8000/soroban/rpc\" && npm run fund  && npm run deploy && npm run bindings || { echo \"Make sure you're running standalone RPC network on localhost:8000\" && exit 1; }",
-		"fund": "./soroban config identity fund",
-		"bindings:custom-types": "./soroban contract bindings typescript --contract-id $(cat contract-id-custom-types.txt) --output-dir ./node_modules/test-custom-types --overwrite",
-		"bindings:hello-world": "./soroban contract bindings typescript --contract-id $(cat contract-id-hello-world.txt) --output-dir ./node_modules/test-hello-world --overwrite",
-		"bindings": "npm run bindings:custom-types && npm run bindings:hello-world",
-		"deploy:custom-types": "(./soroban contract deploy --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_custom_types.wasm) > contract-id-custom-types.txt",
-		"deploy:hello-world": "(./soroban contract deploy --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm) > contract-id-hello-world.txt",
-		"deploy": "npm run deploy:custom-types && npm run deploy:hello-world",
-		"test": "ava"
-	},
-	"devDependencies": {
-		"@ava/typescript": "^4.1.0",
-		"@types/node": "^20.4.9",
-		"ava": "^5.3.1",
-		"soroban-client": "^0.11.0",
-		"typescript": "^5.1.6"
-	},
-	"ava": {
-		"typescript": {
-			"rewritePaths": {
-				"src/": "build/"
-			},
-			"compile": "tsc"
-		}
-	},
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "curl -X POST \"http://localhost:8000/soroban/rpc\" && npm run fund  && npm run deploy && npm run initialize && npm run bindings || { echo \"Make sure you're running standalone RPC network on localhost:8000\" && exit 1; }",
+    "fund:root": "./soroban config identity fund",
+    "fund:alice": "./soroban config identity generate alice && ./soroban config identity fund alice",
+    "fund": "npm run fund:root && npm run fund:alice",
+    "bindings:custom-types": "./soroban contract bindings typescript --contract-id $(cat contract-id-custom-types.txt) --output-dir ./node_modules/test-custom-types --overwrite",
+    "bindings:hello-world": "./soroban contract bindings typescript --contract-id $(cat contract-id-hello-world.txt) --output-dir ./node_modules/test-hello-world --overwrite",
+    "bindings:swap": "./soroban contract bindings typescript --contract-id $(cat contract-id-swap.txt) --output-dir ./node_modules/test-swap --overwrite",
+    "bindings:token": "./soroban contract bindings typescript --contract-id $(cat contract-id-token-a.txt) --output-dir ./node_modules/token --overwrite",
+    "bindings": "npm run bindings:custom-types && npm run bindings:hello-world && npm run bindings:swap && npm run bindings:token",
+    "deploy:custom-types": "(./soroban contract deploy --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_custom_types.wasm) > contract-id-custom-types.txt",
+    "deploy:hello-world": "(./soroban contract deploy --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm) > contract-id-hello-world.txt",
+    "deploy:swap": "(./soroban contract deploy --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_swap.wasm) > contract-id-swap.txt",
+    "install:token": "(./soroban contract install --wasm ../../../../target/wasm32-unknown-unknown/test-wasms/test_token.wasm) > contract-token-hash.txt",
+    "deploy:token:a": "(./soroban contract deploy --wasm-hash $(cat contract-token-hash.txt)) > contract-id-token-a.txt",
+    "deploy:token:b": "(./soroban contract deploy --wasm-hash $(cat contract-token-hash.txt)) > contract-id-token-b.txt",
+    "deploy:token": "npm run install:token && npm run deploy:token:a && npm run deploy:token:b",
+    "deploy": "npm run deploy:custom-types && npm run deploy:hello-world && npm run deploy:swap && npm run deploy:token",
+    "initialize:token:a": "./soroban contract invoke --id $(cat contract-id-token-b.txt) --network standalone -- initialize --admin $(soroban config identity address) --decimal 0 --name 'Token A' --symbol 'A'",
+    "initialize:token:b": "./soroban contract invoke --id $(cat contract-id-token-b.txt) --network standalone -- initialize --admin $(soroban config identity address) --decimal 0 --name 'Token B' --symbol 'B'",
+    "initialize:tokens": "npm run initialize:token:a && npm run initialize:token:b",
+    "mint:root:a": "./soroban contract invoke --id $(cat contract-id-token-a.txt) --network standalone -- mint --to $(soroban config identity address) --amount 1000",
+    "mint:alice:b": "./soroban contract invoke --id $(cat contract-id-token-b.txt) --network standalone -- mint --to $(soroban config identity address alice) --amount 1000",
+    "mint:tokens": "npm run mint:root:a && npm run mint:alice:b",
+    "initialize": "npm run deploy:token && npm run initialize:tokens && npm run mint:tokens",
+    "test": "ava"
+  },
+  "devDependencies": {
+    "@ava/typescript": "^4.1.0",
+    "@types/node": "^20.4.9",
+    "ava": "^5.3.1",
+    "soroban-client": "^0.11.0",
+    "typescript": "^5.1.6"
+  },
+  "ava": {
+    "typescript": {
+      "rewritePaths": {
+        "src/": "build/"
+      },
+      "compile": "tsc"
+    }
+  },
   "engines": {
     "node": ">=20.6.0",
     "npm": ">=9.8.1"
