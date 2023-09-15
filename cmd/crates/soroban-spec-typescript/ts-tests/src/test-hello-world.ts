@@ -1,10 +1,10 @@
 import test from "ava";
-import { wallet, publicKey, rpcUrl } from "./util.js";
-import { Address, Contract, networks } from "test-hello-world";
+import { root, wallet, rpcUrl } from "./util.js";
+import { Contract, networks } from "test-hello-world";
 
-const addr = Address.fromString(publicKey);
+const addr = root.address;
 
-const contract = new Contract({...networks.standalone, rpcUrl, wallet});
+const contract = new Contract({ ...networks.standalone, rpcUrl, wallet });
 
 test("hello", async (t) => {
   t.deepEqual(await contract.hello({ world: "tests" }), ["Hello", "tests"]);

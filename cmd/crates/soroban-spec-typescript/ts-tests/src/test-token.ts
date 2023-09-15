@@ -1,34 +1,188 @@
 import test from "ava";
-import { wallet, rpcUrl } from "./util.js";
-import { Address, Contract, networks } from "token";
+import { wallet, rpcUrl, root, alice } from "./util.js";
+import { Address, Contract as Token, networks as tokenNetworks } from "token";
+import { Contract as Swap, networks } from "test-swap";
 import fs from "node:fs";
-import process from "node:child_process";
+import * as SorobanClient from 'soroban-client'
 
-const tokenAId = fs.readFileSync(new URL("../contract-id-token-a.txt", import.meta.url), "utf8");
-const tokenBId = fs.readFileSync(new URL("../contract-id-token-b.txt", import.meta.url), "utf8");
-const rootStr = process.spawnSync("./soroban", ["config", "identity", "address"], { shell: true, encoding: "utf8" }).stdout;
-const aliceStr = process.spawnSync("./soroban", ["config", "identity", "address", "alice"], { shell: true, encoding: "utf8" }).stdout;
+const tokenAId = fs.readFileSync(new URL("../contract-id-token-a.txt", import.meta.url), "utf8").trim();
+const tokenBId = fs.readFileSync(new URL("../contract-id-token-b.txt", import.meta.url), "utf8").trim();
+const swapId = fs.readFileSync(new URL("../contract-id-swap.txt", import.meta.url), "utf8").trim();
 
-const root = new Address(rootStr.trim());
-const alice = new Address(aliceStr.trim());
+const tokenAAddress = Address.fromString(tokenAId);
+const tokenBAddress = Address.fromString(tokenBId);
 
-const tokenA = new Contract({
-  contractId: tokenAId.trim(),
-  networkPassphrase: networks.standalone.networkPassphrase,
+const tokenA = new Token({
+  contractId: tokenAId,
+  networkPassphrase: tokenNetworks.standalone.networkPassphrase,
   rpcUrl,
   wallet,
 });
-const tokenB = new Contract({
-  contractId: tokenBId.trim(),
-  networkPassphrase: networks.standalone.networkPassphrase,
+const tokenB = new Token({
+  contractId: tokenBId,
+  networkPassphrase: tokenNetworks.standalone.networkPassphrase,
   rpcUrl,
   wallet,
 });
+const swap = new Swap({ ...networks.standalone, rpcUrl })
 
-test("balances", async (t) => {
-  t.is(await tokenA.balance({ id: root }), 1000n);
-  t.is(await tokenB.balance({ id: root }), 0n);
-
-  t.is(await tokenA.balance({ id: alice }), 0n);
-  t.is(await tokenB.balance({ id: alice }), 1000n);
+const server = new SorobanClient.Server("http://localhost:8000/soroban/rpc", {
+  allowHttp: true,
 });
+
+test("root has 1000 token A", async t => {
+  t.is(await tokenA.balance({ id: new Address(root.keypair.publicKey()) }), 1000n);
+})
+test("root has 0 token B", async t => {
+  t.is(await tokenB.balance({ id: new Address(root.keypair.publicKey()) }), 0n);
+})
+test("alice has 0 token A", async (t) => {
+  t.is(await tokenA.balance({ id: new Address(alice.keypair.publicKey()) }), 0n);
+});
+test("alice has 1000 token B", async (t) => {
+  t.is(await tokenB.balance({ id: new Address(alice.keypair.publicKey()) }), 1000n);
+});
+
+
+// test('swap', async t => {
+//   const args = {
+//     a: root.address,
+//     b: alice.address,
+//     token_a: tokenAAddress,
+//     token_b: tokenBAddress,
+//     amount_a: 10n,
+//     min_b_for_a: 1n,
+//     amount_b: 1n,
+//     min_a_for_b: 10n
+//   }
+
+//   const networkPassphrase = "Standalone Network ; February 2017"
+//   const signerPubKey = ''
+//   const { tx, simulation } = await swap.swap(args, { responseType: 'simulated' })
+//   // take sim and save for later
+//   // use tx to sign auth entry
+//   const rawInvokeHostFunctionOp = tx
+//     .operations[0] as SorobanClient.Operation.InvokeHostFunction;
+
+//   const authEntries = rawInvokeHostFunctionOp.auth ? rawInvokeHostFunctionOp.auth : [];
+
+//   const signedAuthEntries = [];
+
+//   for (const entry of authEntries) {
+//     if (
+//       entry.credentials().switch() !==
+//       SorobanClient.xdr.SorobanCredentialsType.sorobanCredentialsAddress()
+//     ) {
+//       signedAuthEntries.push(entry);
+//     } else {
+//       const entryAddress = entry.credentials().address().address().accountId();
+
+//       if (
+//         root.keypair.publicKey() === SorobanClient.StrKey.encodeEd25519PublicKey(entryAddress.ed25519())
+//       ) {
+//         let expirationLedgerSeq = 0;
+
+//         const key = SorobanClient.xdr.LedgerKey.contractData(
+//           new SorobanClient.xdr.LedgerKeyContractData({
+//             contract: new Address(swapId).toScAddress(),
+//             key: SorobanClient.xdr.ScVal.scvLedgerKeyContractInstance(),
+//             durability: SorobanClient.xdr.ContractDataDurability.persistent(),
+//             bodyType: SorobanClient.xdr.ContractEntryBodyType.dataEntry(),
+//           }),
+//         );
+
+//         // Fetch the current contract ledger seq
+//         // eslint-disable-next-line no-await-in-loop
+//         const entryRes = await server.getLedgerEntries([key]);
+//         if (entryRes.entries && entryRes.entries.length) {
+//           const parsed = SorobanClient.xdr.LedgerEntryData.fromXDR(
+//             entryRes.entries[0].xdr,
+//             "base64",
+//           );
+//           // set auth entry to expire when contract data expires, but could any number of blocks in the future
+//           expirationLedgerSeq = parsed.contractData().expirationLedgerSeq();
+//         } else {
+//           throw new Error("failed to get ledger entry");
+//         }
+
+//         // const invocation = entry.rootInvocation();
+//         const signingMethod = async (input: Buffer) => {
+//           // KeyPair.sign ...
+//           // const signature = (await signData(
+//           //   input.toString("base64"),
+//           //   signerPubKey,
+//           //   kit,
+//           // )) as any as { data: number[] };
+//           return Buffer.from("");
+//         };
+
+//         try {
+//           /// no-op
+//           if (
+//             entry.credentials().switch() !==
+//             SorobanClient.xdr.SorobanCredentialsType.sorobanCredentialsAddress()
+//           ) {
+//             return entry;
+//           }
+
+//           const addrAuth = entry.credentials().address();
+//           addrAuth.signatureExpirationLedger(expirationLedgerSeq);
+
+//           const networkId = SorobanClient.hash(Buffer.from(networkPassphrase));
+//           const preimage = SorobanClient.xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
+//             new SorobanClient.xdr.HashIdPreimageSorobanAuthorization({
+//               networkId,
+//               nonce: addrAuth.nonce(),
+//               invocation: entry.rootInvocation(),
+//               signatureExpirationLedger: addrAuth.signatureExpirationLedger(),
+//             }),
+//           );
+//           const payload = SorobanClient.hash(preimage.toXDR());
+
+//           const signature = await signingMethod(payload);
+//           const publicKey = Address.fromScAddress(addrAuth.address()).toString();
+
+//           if (!SorobanClient.Keypair.fromPublicKey(publicKey).verify(payload, signature)) {
+//             throw new Error(`signature doesn't match payload`);
+//           }
+
+//           const sigScVal = SorobanClient.nativeToScVal(
+//             {
+//               public_key: SorobanClient.StrKey.decodeEd25519PublicKey(publicKey),
+//               signature,
+//             },
+//             {
+//               // force the keys to be interpreted as symbols (expected for
+//               // Soroban [contracttype]s)
+//               // Pr open to fix this type in the gen'd xdr
+//               type: {
+//                 public_key: ["symbol", null],
+//                 signature: ["symbol", null],
+//               } as any,
+//             },
+//           );
+
+//           addrAuth.signatureArgs([sigScVal]);
+
+//           signedAuthEntries.push(entry);
+//         } catch (error) {
+//           console.log(error);
+//         }
+//       } else {
+//         signedAuthEntries.push(entry);
+//       }
+//     }
+//   }
+
+//   const builder = SorobanClient.TransactionBuilder.cloneFrom(tx);
+//   builder.clearOperations().addOperation(
+//     SorobanClient.Operation.invokeHostFunction({
+//       ...rawInvokeHostFunctionOp,
+//       auth: signedAuthEntries,
+//     }),
+//   );
+
+//   const signedTx = builder.build();
+
+//   // const realSwap = await swap.swap(args, { footprint })
+// })

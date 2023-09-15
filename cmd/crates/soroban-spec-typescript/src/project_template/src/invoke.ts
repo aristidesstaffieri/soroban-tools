@@ -34,7 +34,7 @@ async function getAccount(
   return await server.getAccount(publicKey);
 }
 
-export class NotImplementedError extends Error {}
+export class NotImplementedError extends Error { }
 
 type Simulation = SorobanClient.SorobanRpc.SimulateTransactionResponse;
 type SendTx = SorobanClient.SorobanRpc.SendTransactionResponse;
@@ -62,12 +62,12 @@ export async function invoke<R extends ResponseTypes = undefined, T = string>(
   args: InvokeArgs<R, T>
 ): Promise<
   R extends undefined
-    ? T
-    : R extends "simulated"
-    ? Simulation
-    : R extends "full"
-    ? SomeRpcResponse
-    : T
+  ? T
+  : R extends "simulated"
+  ? Simulation
+  : R extends "full"
+  ? SomeRpcResponse
+  : T
 >;
 export async function invoke<R extends ResponseTypes, T = string>({
   method,
@@ -203,6 +203,8 @@ export async function signTx(
  * Send a transaction to the Soroban network.
  *
  * Wait `secondsToWait` seconds for the transaction to complete (default: 10).
+ * If you pass `0`, it will automatically return the `sendTransaction` results,
+ * rather than using `getTransaction`.
  *
  * If you need to construct or sign a transaction yourself rather than using
  * `invoke` or one of the exported contract methods, you may want to use this

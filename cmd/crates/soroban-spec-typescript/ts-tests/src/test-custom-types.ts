@@ -1,10 +1,10 @@
 import test from 'ava'
-import { publicKey, rpcUrl, wallet } from './util.js'
-import { Contract, Ok, Err, networks, Address } from 'test-custom-types'
+import { root, rpcUrl, wallet } from './util.js'
+import { Contract, Ok, Err, networks } from 'test-custom-types'
 
-const addr = Address.fromString(publicKey)
+const addr = root.address;
 
-const contract = new Contract({ ...networks.standalone, rpcUrl, wallet});
+const contract = new Contract({ ...networks.standalone, rpcUrl, wallet });
 
 test('hello', async t => {
   t.is(await contract.hello({ hello: 'tests' }), 'tests')
