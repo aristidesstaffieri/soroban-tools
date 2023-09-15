@@ -12,6 +12,7 @@ import type {
   MethodOptions,
   ResponseTypes,
   Wallet,
+  XDR_BASE64,
 } from "./method-options.js";
 
 export type Tx = Transaction<Memo<MemoType>, Operation[]>;
@@ -40,10 +41,6 @@ type Simulation = SorobanClient.SorobanRpc.SimulateTransactionResponse;
 type SendTx = SorobanClient.SorobanRpc.SendTransactionResponse;
 type GetTx = SorobanClient.SorobanRpc.GetTransactionResponse;
 
-// defined this way so typeahead shows full union, not named alias
-let someRpcResponse: Simulation | SendTx | GetTx;
-type SomeRpcResponse = typeof someRpcResponse;
-
 type InvokeArgs<R extends ResponseTypes, T = string> = MethodOptions<R> &
   ClassOptions & {
     method: string;
@@ -61,13 +58,13 @@ type InvokeArgs<R extends ResponseTypes, T = string> = MethodOptions<R> &
 export async function invoke<R extends ResponseTypes = undefined, T = string>(
   args: InvokeArgs<R, T>
 ): Promise<
-  R extends undefined
-  ? T
-  : R extends "simulated"
-  ? Simulation
+  R extends "simulated"
+  ? { txUnsigned: XDR_BASE64, simulation: Simulation }
   : R extends "full"
-  ? SomeRpcResponse
-  : T
+  ? { txUnsigned: XDR_BASE64, txSigned?: XDR_BASE64, simulation: Simulation, sendTransactionResponse?: SendTx, getTransactionResponse?: GetTx, getTransactionResponseAll?: GetTx[] }
+  : R extends undefined
+  ? { txUnsigned: XDR_BASE64, txSigned?: XDR_BASE64, simulation: Simulation, result: T, sendTransactionResponse?: SendTx, getTransactionResponse?: GetTx, getTransactionResponseAll?: GetTx[] }
+  : { txUnsigned: XDR_BASE64, txSigned?: XDR_BASE64, simulation: Simulation, result: T, sendTransactionResponse?: SendTx, getTransactionResponse?: GetTx, getTransactionResponseAll?: GetTx[] }
 >;
 export async function invoke<R extends ResponseTypes, T = string>({
   method,
@@ -80,7 +77,7 @@ export async function invoke<R extends ResponseTypes, T = string>({
   networkPassphrase,
   contractId,
   wallet,
-}: InvokeArgs<R, T>): Promise<T | string | SomeRpcResponse> {
+}: InvokeArgs<R, T>): Promise<{ txUnsigned: XDR_BASE64, txSigned?: XDR_BASE64, simulation: Simulation, result?: T, sendTransactionResponse?: SendTx, getTransactionResponse?: GetTx, getTransactionResponseAll?: GetTx[] }> {
   wallet = wallet ?? (await import("@stellar/freighter-api")).default;
   let parse = parseResultXdr;
   const server = new SorobanClient.Server(rpcUrl, {
@@ -98,22 +95,22 @@ export async function invoke<R extends ResponseTypes, T = string>({
 
   const contract = new SorobanClient.Contract(contractId);
 
-  let tx = new SorobanClient.TransactionBuilder(account, {
+  const txUnsigned = new SorobanClient.TransactionBuilder(account, {
     fee: fee.toString(10),
     networkPassphrase,
   })
     .addOperation(contract.call(method, ...args))
     .setTimeout(SorobanClient.TimeoutInfinite)
     .build();
-  const simulated = await server.simulateTransaction(tx);
+  const simulation = await server.simulateTransaction(txUnsigned);
 
-  if (simulated.error) throw simulated.error;
-  if (responseType === "simulated") return simulated;
+  if (simulation.error) throw simulation.error;
+  if (responseType === "simulated") return { txUnsigned: txUnsigned.toXDR(), simulation };
 
   // is it possible for `auths` to be present but empty? Probably not, but let's be safe.
-  let authsCount = simulated.result!.auth?.length ?? 0;
+  let authsCount = simulation.result!.auth?.length ?? 0;
 
-  const writeLength = simulated.transactionData
+  const writeLength = simulation.transactionData
     .build()
     .resources()
     .footprint()
@@ -122,18 +119,18 @@ export async function invoke<R extends ResponseTypes, T = string>({
   const isViewCall = authsCount === 0 && writeLength === 0;
 
   if (isViewCall) {
-    if (responseType === "full") return simulated;
+    if (responseType === "full") return { txUnsigned: txUnsigned.toXDR(), simulation };
 
-    const retval = simulated.result?.retval;
+    const retval = simulation.result?.retval;
     if (!retval) {
-      if (simulated.error) {
-        throw new Error(simulated.error as unknown as string);
+      if (simulation.error) {
+        throw new Error(simulation.error as unknown as string);
       }
       throw new Error(
-        `Invalid response from simulateTransaction:\n{simulated}`
+        `Invalid response from simulateTransaction:\n${simulation}`
       );
     }
-    return parseResultXdr(retval);
+    return { txUnsigned: txUnsigned.toXDR(), simulation, result: parseResultXdr(retval) };
   }
 
   if (authsCount > 1) {
@@ -154,26 +151,43 @@ export async function invoke<R extends ResponseTypes, T = string>({
     throw new Error("Not connected to Freighter");
   }
 
-  tx = await signTx(
+  const txSigned = await signTx(
     wallet,
-    SorobanClient.assembleTransaction(tx, networkPassphrase, simulated).build(),
+    SorobanClient.assembleTransaction(txUnsigned, networkPassphrase, simulation).build(),
     networkPassphrase
   );
 
-  const raw = await sendTx(tx, secondsToWait, server);
+  const data = {
+    simulation,
+    txUnsigned: txUnsigned.toXDR(),
+    txSigned: txSigned.toXDR(),
+    ...await sendTx(txSigned, secondsToWait, server)
+  };
 
-  if (responseType === "full") return raw;
+  if (responseType === "full") return data;
 
-  // if `sendTx` awaited the inclusion of the tx in the ledger, it used
-  // `getTransaction`, which has a `returnValue` field
-  if ("returnValue" in raw) return parse(raw.returnValue!);
+  // if `sendTx` awaited the inclusion of the tx in the ledger, it used `getTransaction`
+  if (
+    "getTransactionResponse" in data &&
+    data.getTransactionResponse
+  ) {
+    // getTransactionResponse has a `returnValue` field unless it failed
+    if ("returnValue" in data.getTransactionResponse) return {
+      ...data,
+      result: parse(data.getTransactionResponse.returnValue!)
+    };
 
-  // otherwise, it returned the result of `sendTransaction`
-  if ("errorResultXdr" in raw) return parse(raw.errorResultXdr!);
+    // if "returnValue" not present, the transaction failed; return without parsing the result
+    console.error("Transaction failed! Cannot parse result.");
+    return data;
+  }
 
-  // if neither of these are present, something went wrong
-  console.error("Don't know how to parse result! Returning full RPC response.");
-  return raw;
+
+  // if it didn't await, it returned the result of `sendTransaction`
+  return {
+    ...data,
+    result: parse(data.sendTransactionResponse.errorResultXdr!),
+  };
 }
 
 /**
@@ -215,16 +229,17 @@ export async function sendTx(
   tx: Tx,
   secondsToWait: number,
   server: SorobanClient.Server
-): Promise<SendTx | GetTx> {
+): Promise<{ sendTransactionResponse: SendTx, getTransactionResponse?: GetTx, getTransactionResponseAll?: GetTx[] }> {
   const sendTransactionResponse = await server.sendTransaction(tx);
 
   if (sendTransactionResponse.status !== "PENDING" || secondsToWait === 0) {
-    return sendTransactionResponse;
+    return { sendTransactionResponse };
   }
 
-  let getTransactionResponse = await server.getTransaction(
+  const getTransactionResponseAll: GetTx[] = [];
+  getTransactionResponseAll.push(await server.getTransaction(
     sendTransactionResponse.hash
-  );
+  ));
 
   const waitUntil = new Date(Date.now() + secondsToWait * 1000).valueOf();
 
@@ -233,19 +248,19 @@ export async function sendTx(
 
   while (
     Date.now() < waitUntil &&
-    getTransactionResponse.status === "NOT_FOUND"
+    getTransactionResponseAll[getTransactionResponseAll.length - 1].status === "NOT_FOUND"
   ) {
     // Wait a beat
     await new Promise((resolve) => setTimeout(resolve, waitTime));
     /// Exponential backoff
     waitTime = waitTime * exponentialFactor;
     // See if the transaction is complete
-    getTransactionResponse = await server.getTransaction(
+    getTransactionResponseAll.push(await server.getTransaction(
       sendTransactionResponse.hash
-    );
+    ));
   }
 
-  if (getTransactionResponse.status === "NOT_FOUND") {
+  if (getTransactionResponseAll[getTransactionResponseAll.length - 1].status === "NOT_FOUND") {
     console.error(
       `Waited ${secondsToWait} seconds for transaction to complete, but it did not. Returning anyway. Check the transaction status manually. Info: ${JSON.stringify(
         sendTransactionResponse,
@@ -255,5 +270,9 @@ export async function sendTx(
     );
   }
 
-  return getTransactionResponse;
+  return {
+    sendTransactionResponse,
+    getTransactionResponseAll,
+    getTransactionResponse: getTransactionResponseAll[getTransactionResponseAll.length - 1]
+  };
 }

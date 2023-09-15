@@ -8,5 +8,5 @@ const contract = new Contract({ ...networks.standalone, rpcUrl, wallet });
 const hello = contract.hello
 
 test("hello", async (t) => {
-  t.deepEqual(await hello({ world: "tests" }), ["Hello", "tests"]);
+  t.deepEqual((await hello({ world: "tests" })).result, ["Hello", "tests"]);
 });

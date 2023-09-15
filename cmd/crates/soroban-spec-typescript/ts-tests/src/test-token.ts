@@ -31,16 +31,16 @@ const server = new SorobanClient.Server("http://localhost:8000/soroban/rpc", {
 });
 
 test("root has 1000 token A", async t => {
-  t.is(await tokenA.balance({ id: new Address(root.keypair.publicKey()) }), 1000n);
+  t.is((await tokenA.balance({ id: new Address(root.keypair.publicKey()) })).result, 1000n);
 })
 test("root has 0 token B", async t => {
-  t.is(await tokenB.balance({ id: new Address(root.keypair.publicKey()) }), 0n);
+  t.is((await tokenB.balance({ id: new Address(root.keypair.publicKey()) })).result, 0n);
 })
 test("alice has 0 token A", async (t) => {
-  t.is(await tokenA.balance({ id: new Address(alice.keypair.publicKey()) }), 0n);
+  t.is((await tokenA.balance({ id: new Address(alice.keypair.publicKey()) })).result, 0n);
 });
 test("alice has 1000 token B", async (t) => {
-  t.is(await tokenB.balance({ id: new Address(alice.keypair.publicKey()) }), 1000n);
+  t.is((await tokenB.balance({ id: new Address(alice.keypair.publicKey()) })).result, 1000n);
 });
 
 
@@ -55,19 +55,19 @@ test("alice has 1000 token B", async (t) => {
 //     amount_b: 1n,
 //     min_a_for_b: 10n
 //   }
-
+//
 //   const networkPassphrase = "Standalone Network ; February 2017"
 //   const signerPubKey = ''
-//   const { tx, simulation } = await swap.swap(args, { responseType: 'simulated' })
+//   const { txUnsigned, simulation } = (await swap.swap(args, { responseType: 'simulated' })).result
 //   // take sim and save for later
-//   // use tx to sign auth entry
-//   const rawInvokeHostFunctionOp = tx
+//   // use txUnsigned to sign auth entry
+//   const rawInvokeHostFunctionOp = txUnsigned
 //     .operations[0] as SorobanClient.Operation.InvokeHostFunction;
-
+//
 //   const authEntries = rawInvokeHostFunctionOp.auth ? rawInvokeHostFunctionOp.auth : [];
-
+//
 //   const signedAuthEntries = [];
-
+//
 //   for (const entry of authEntries) {
 //     if (
 //       entry.credentials().switch() !==
@@ -76,12 +76,12 @@ test("alice has 1000 token B", async (t) => {
 //       signedAuthEntries.push(entry);
 //     } else {
 //       const entryAddress = entry.credentials().address().address().accountId();
-
+//
 //       if (
 //         root.keypair.publicKey() === SorobanClient.StrKey.encodeEd25519PublicKey(entryAddress.ed25519())
 //       ) {
 //         let expirationLedgerSeq = 0;
-
+//
 //         const key = SorobanClient.xdr.LedgerKey.contractData(
 //           new SorobanClient.xdr.LedgerKeyContractData({
 //             contract: new Address(swapId).toScAddress(),
@@ -90,7 +90,7 @@ test("alice has 1000 token B", async (t) => {
 //             bodyType: SorobanClient.xdr.ContractEntryBodyType.dataEntry(),
 //           }),
 //         );
-
+//
 //         // Fetch the current contract ledger seq
 //         // eslint-disable-next-line no-await-in-loop
 //         const entryRes = await server.getLedgerEntries([key]);
@@ -104,7 +104,7 @@ test("alice has 1000 token B", async (t) => {
 //         } else {
 //           throw new Error("failed to get ledger entry");
 //         }
-
+//
 //         // const invocation = entry.rootInvocation();
 //         const signingMethod = async (input: Buffer) => {
 //           // KeyPair.sign ...
@@ -115,7 +115,7 @@ test("alice has 1000 token B", async (t) => {
 //           // )) as any as { data: number[] };
 //           return Buffer.from("");
 //         };
-
+//
 //         try {
 //           /// no-op
 //           if (
@@ -124,10 +124,10 @@ test("alice has 1000 token B", async (t) => {
 //           ) {
 //             return entry;
 //           }
-
+//
 //           const addrAuth = entry.credentials().address();
 //           addrAuth.signatureExpirationLedger(expirationLedgerSeq);
-
+//
 //           const networkId = SorobanClient.hash(Buffer.from(networkPassphrase));
 //           const preimage = SorobanClient.xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
 //             new SorobanClient.xdr.HashIdPreimageSorobanAuthorization({
@@ -138,14 +138,14 @@ test("alice has 1000 token B", async (t) => {
 //             }),
 //           );
 //           const payload = SorobanClient.hash(preimage.toXDR());
-
+//
 //           const signature = await signingMethod(payload);
 //           const publicKey = Address.fromScAddress(addrAuth.address()).toString();
-
+//
 //           if (!SorobanClient.Keypair.fromPublicKey(publicKey).verify(payload, signature)) {
 //             throw new Error(`signature doesn't match payload`);
 //           }
-
+//
 //           const sigScVal = SorobanClient.nativeToScVal(
 //             {
 //               public_key: SorobanClient.StrKey.decodeEd25519PublicKey(publicKey),
@@ -161,9 +161,9 @@ test("alice has 1000 token B", async (t) => {
 //               } as any,
 //             },
 //           );
-
+//
 //           addrAuth.signatureArgs([sigScVal]);
-
+//
 //           signedAuthEntries.push(entry);
 //         } catch (error) {
 //           console.log(error);
@@ -173,16 +173,16 @@ test("alice has 1000 token B", async (t) => {
 //       }
 //     }
 //   }
-
-//   const builder = SorobanClient.TransactionBuilder.cloneFrom(tx);
+//
+//   const builder = SorobanClient.TransactionBuilder.cloneFrom(txUnsigned);
 //   builder.clearOperations().addOperation(
 //     SorobanClient.Operation.invokeHostFunction({
 //       ...rawInvokeHostFunctionOp,
 //       auth: signedAuthEntries,
 //     }),
 //   );
-
+//
 //   const signedTx = builder.build();
-
-//   // const realSwap = await swap.swap(args, { footprint })
+//
+//   // const realSwap = (await swap.swap(args, { footprint })).result
 // })
